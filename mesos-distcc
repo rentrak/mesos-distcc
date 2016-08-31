@@ -33,7 +33,7 @@ class DistCCScheduler(mesos.interface.Scheduler):
         for offer in offers:
             if self.launched_slots >= self.max_slots:
                 driver.declineOffer(offer.id)
-                return
+                continue
 
             print('Got resource offer', offer.id.value)
 
