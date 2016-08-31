@@ -8,11 +8,12 @@ import random
 import subprocess
 import sys
 
-import mesos
-import mesos_pb2
+import mesos.interface
+from mesos.interface import mesos_pb2
+import mesos.native
 
 
-class DistCCScheduler(mesos.Scheduler):
+class DistCCScheduler(mesos.interface.Scheduler):
     def __init__(self, max_slots, distccd_path, argv):
         self.max_slots = max_slots
         self.distccd_path = distccd_path
@@ -191,7 +192,7 @@ if __name__ == '__main__':
     framework.failover_timeout = 1.0
     framework.checkpoint = False
 
-    driver = mesos.MesosSchedulerDriver(
+    driver = mesos.native.MesosSchedulerDriver(
         DistCCScheduler(jobs, DISTCCD_PATH, sys.argv[1:]),
         framework,
         MESOS_MASTER)
