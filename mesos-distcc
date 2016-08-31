@@ -192,10 +192,32 @@ if __name__ == '__main__':
     framework.failover_timeout = 1.0
     framework.checkpoint = False
 
-    driver = mesos.native.MesosSchedulerDriver(
-        DistCCScheduler(jobs, DISTCCD_PATH, sys.argv[1:]),
-        framework,
-        MESOS_MASTER)
+    if os.getenv("MESOS_AUTHENTICATE_FRAMEWORKS"):
+        print("Enabling authentication for the framework")
+
+        if not os.getenv("DEFAULT_PRINCIPAL"):
+            print("Expecting authentication principal in the environment")
+            sys.exit(1);
+
+        credential = mesos_pb2.Credential()
+        credential.principal = os.getenv("DEFAULT_PRINCIPAL")
+
+        if os.getenv("DEFAULT_SECRET"):
+            credential.secret = os.getenv("DEFAULT_SECRET")
+
+        framework.principal = os.getenv("DEFAULT_PRINCIPAL")
+
+        driver = mesos.native.MesosSchedulerDriver(
+            DistCCScheduler(jobs, DISTCCD_PATH, sys.argv[1:]),
+            framework,
+            MESOS_MASTER,
+            0,
+            credential)
+    else:
+        driver = mesos.native.MesosSchedulerDriver(
+            DistCCScheduler(jobs, DISTCCD_PATH, sys.argv[1:]),
+            framework,
+            MESOS_MASTER)
 
     status = 0 if driver.run() == mesos_pb2.DRIVER_STOPPED else 1
 
