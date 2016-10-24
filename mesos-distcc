@@ -26,6 +26,34 @@ class DistCCScheduler(mesos.interface.Scheduler):
     def registered(self, driver, frameworkId, masterInfo):
         print('Registered with framework ID', frameworkId.value)
 
+    def create_task(offer, task_id, port, slots):
+        task = mesos_pb2.TaskInfo()
+        task.task_id.value = str(task_id)
+        task.slave_id.value = offer.slave_id.value
+        task.name = 'distcc task ' + str(task_id)
+
+        # TODO(bmahler): Only --allow from this machine's IP address.
+        task.command.value = \
+            self.distccd_path + ' ' \
+            '--daemon ' \
+            '--no-detach ' \
+            '--allow=0.0.0.0/0 ' \
+            '--port=%d ' \
+            '--jobs=%d' \
+            % (port, slots)
+
+        print(task.command.value)
+
+        cpus = task.resources.add()
+        cpus.name = 'cpus'
+        cpus.type = mesos_pb2.Value.SCALAR
+        cpus.scalar.value = slots
+
+        mem = task.resources.add()
+        mem.name = 'mem'
+        mem.type = mesos_pb2.Value.SCALAR
+        mem.scalar.value = slots * 512
+
     def resourceOffers(self, driver, offers):
         print('Got', len(offers), 'resource offers')
 
@@ -58,32 +86,7 @@ class DistCCScheduler(mesos.interface.Scheduler):
             tid = self.tid
             self.tid += 1
 
-            task = mesos_pb2.TaskInfo()
-            task.task_id.value = str(tid)
-            task.slave_id.value = offer.slave_id.value
-            task.name = 'distcc task ' + str(tid)
-
-            # TODO(bmahler): Only --allow from this machine's IP address.
-            task.command.value = \
-                self.distccd_path + ' ' \
-                '--daemon ' \
-                '--no-detach ' \
-                '--allow=0.0.0.0/0 ' \
-                '--port=%d ' \
-                '--jobs=%d' \
-                % (port, slots)
-
-            print(task.command.value)
-
-            cpus = task.resources.add()
-            cpus.name = 'cpus'
-            cpus.type = mesos_pb2.Value.SCALAR
-            cpus.scalar.value = slots
-
-            mem = task.resources.add()
-            mem.name = 'mem'
-            mem.type = mesos_pb2.Value.SCALAR
-            mem.scalar.value = slots * 512
+            task = self.create_task(offer, tid, port, slots)
 
             print('Launching task', tid, 'on slave', offer.hostname)
             driver.launchTasks(offer.id, [task])
@@ -114,9 +117,8 @@ class DistCCScheduler(mesos.interface.Scheduler):
 
             p = subprocess.Popen('echo $DISTCC_HOSTS && echo $DISTCC_POTENTIAL_HOSTS && ' +
                                  ' '.join(self.argv), shell=True, env=env)
-            p.wait()
-            print("'", ' '.join(self.argv), "' exited with status", p.returncode)
-            driver.stop()
+            signal.signal(signal.SIGCHLD, sigchld_handler)
+            self.pid = p.pid
 
 
 def usage():
